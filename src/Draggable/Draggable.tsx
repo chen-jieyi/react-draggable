@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 
-let prevPos = { x: 0, y: 0 };
+let prevMousePos = { x: 0, y: 0 };
 let curPos = { y: 0, x: 0 };
 
 export interface DragItemType {
@@ -27,6 +27,7 @@ export interface DraggableProps {
   isMult?: boolean; // 是否多选
   isSelected?: boolean; // 是否被选中
   isForbid?: boolean;
+  isLock?: boolean; // 锁定
   allClear?: string;
   selectedKey?: string;
   toolRender?: (isSelected?: boolean) => React.ReactElement;
@@ -55,6 +56,7 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
     isMult,
     isSelected,
     isForbid = false, // 是否可操作
+    isLock, // 锁定
     allClear,
     selectedKey,
     toolRender,
@@ -82,23 +84,26 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
   }, []);
 
   const onMouseDown = (e: React.MouseEvent) => {
-    onDragStart &&
-      onDragStart(e, {
-        height: ref?.current?.offsetHeight,
-        width: ref?.current?.offsetWidth,
-        ...defaultPosition,
-      });
+    onDragStart?.(e, {
+      height: ref?.current?.offsetHeight,
+      width: ref?.current?.offsetWidth,
+      // ...defaultPosition,
+      ...(position || pos),
+    });
     // 当选择拖动对象时 当前的光标失去焦点禁止输入
     window?.getSelection()?.removeAllRanges();
 
     if (isForbid) {
       return;
     }
-
     e.stopPropagation();
     e.preventDefault();
+    if (isLock) {
+      setCursor('default');
+      return;
+    }
 
-    prevPos = {
+    prevMousePos = {
       y: e.nativeEvent.y,
       x: e.nativeEvent.x,
     };
@@ -117,8 +122,8 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
     if (!isMove) return;
     if (isMult) return;
 
-    let x = axis !== 'y' ? curPos.x + e.x - prevPos.x : curPos.x;
-    let y = axis !== 'x' ? curPos.y + e.y - prevPos.y : curPos.y;
+    let x = axis !== 'y' ? curPos.x + e.x - prevMousePos.x : curPos.x;
+    let y = axis !== 'x' ? curPos.y + e.y - prevMousePos.y : curPos.y;
     // 边界限制
     minX && x < minX && (x = minX);
     maxX && x > maxX && (x = maxX);
@@ -132,7 +137,7 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
       y,
       x,
     };
-    prevPos = {
+    prevMousePos = {
       y: e.y,
       x: e.x,
     };
@@ -152,7 +157,7 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
       });
     isMove = false;
 
-    prevPos = { x: 0, y: 0 };
+    prevMousePos = { x: 0, y: 0 };
     curPos = { y: 0, x: 0 };
     window.onmousemove = null;
     window.onmouseup = null;
@@ -163,6 +168,7 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
     // console.log(isForbid);
     if (!ref?.current) return;
     if (isForbid) return;
+    if (isLock) return;
     onDoubleClick && onDoubleClick(ref);
     dbCursor && setCursor(dbCursor);
   };
@@ -183,12 +189,14 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
         top: (position || pos).y,
         left: (position || pos).x,
         border: isSelected
-          ? isForbid
+          ? isLock
+            ? '1px dashed orange'
+            : isForbid
             ? '1px dashed #d9d5d5'
             : '1px dashed #685e5e'
           : '1px solid rgba(0,0,0,0)',
         cursor,
-        overflow: 'hidden',
+        // overflow: 'hidden',
         transform: `rotate(${rotate}deg)`,
         ...style,
       }}
@@ -202,6 +210,7 @@ const Draggable: React.ForwardRefRenderFunction<unknown, DraggableProps> = (
         ref={ref}
         disabled={!isSelected}
         {...children.props}
+        style={{ ...(children?.props?.style || {}), overflow: 'hidden' }}
         allClear={allClear}
         selectedKey={selectedKey}
       />
